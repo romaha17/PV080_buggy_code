@@ -1,9 +1,22 @@
 import sys 
 import os
 import yaml
-import flask
-import urllib.request
-import urllib2
+import urllib3
+from urllib.parse import urlparse
+import ipaddress
+import socket
+ALLOWED_DOMAINS = {"example.com", "api.trusted.com"}
+
+def is_safe_url(url):
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        ip = socket.gethostbyname(hostname)
+        if ipaddress.ip_address(ip).is_private:
+            return False
+        return hostname in ALLOWED_DOMAINS
+    except Exception:
+        return False
 
 app = flask.Flask(__name__)
 
@@ -25,18 +38,13 @@ def print_nametag(format_string, person):
     print(format_string.format(person=person))
 
 
-def fetch_website(urllib_version, url):
-    try:
-        if urllib_version == "2":
-            response = urllib2.urlopen(url)
-        elif urllib_version == "3":
-            response = urllib.request.urlopen(url)
-        else:
-            print("Unsupported urllib version")
-            return
-        print(response.read())
-    except Exception as e:
-        print("Exception:", e)
+def fetch_website(url):
+    if not is_safe_url(url):
+        raise ValueError("Unsafe URL detected")
+
+    http = urllib3.PoolManager()
+    response = http.request('GET', url)
+    return response.data
 
 
 def load_yaml(filename):
